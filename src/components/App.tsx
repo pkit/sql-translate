@@ -20,6 +20,7 @@ export const App: FC = () => {
     const [transpile, setTranspile] = useState(() => (v: string, _from: string, _to: string) => { return v })
     const [fromDialect, setFromDialect] = useState("clickhouse")
     const [toDialect, setToDialect] = useState("clickhouse")
+    const [dialectList, setDialectList] = useState(["clickhouse"])
 
 
     const defaultCode = `
@@ -98,7 +99,15 @@ GROUP BY
                     except Exception as e:
                         err_lines = str(e).splitlines()
                         return to_js("\\n".join(["-- ERROR"] + ["-- " + l for l in err_lines] + [""]))
+
+
+                def get_dialects():
+                    return to_js([d.value for d in sqlglot.dialects.Dialects if d.value])
+
             `, { globals: namespace })
+            const getDialects = namespace.get("get_dialects")
+            const dialects = getDialects.call()
+            setDialectList(dialects)
             const pyTranspile = namespace.get("transpile")
             const transpile = () => (sql: string, from: string, to: string) => {
                 return pyTranspile.callKwargs(sql, { read: from, write: to })
@@ -122,9 +131,7 @@ GROUP BY
                             label="From dialect:"
                             onChange={handleChangeFrom}
                         >
-                            <MenuItem value={"clickhouse"}>ClickHouse</MenuItem>
-                            <MenuItem value={"postgres"}>PostgreSQL</MenuItem>
-                            <MenuItem value={"snowflake"}>Snowflake</MenuItem>
+                            {dialectList.map(d => <MenuItem id={d} value={d}>{d}</MenuItem>)}
                         </Select>
                     </FormControl>
                 </Grid>
@@ -138,9 +145,7 @@ GROUP BY
                             label="To dialect:"
                             onChange={handleChangeTo}
                         >
-                            <MenuItem value={"clickhouse"}>ClickHouse</MenuItem>
-                            <MenuItem value={"postgres"}>PostgreSQL</MenuItem>
-                            <MenuItem value={"snowflake"}>Snowflake</MenuItem>
+                            {dialectList.map(d => <MenuItem id={d} value={d}>{d}</MenuItem>)}
                         </Select>
                     </FormControl>
                 </Grid>
