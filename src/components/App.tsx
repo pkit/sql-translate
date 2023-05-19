@@ -18,11 +18,14 @@ import {
 } from "@mui/material";
 import SyncAltIcon from '@mui/icons-material/SyncAlt';
 
+type TranspileFunc = (value: string, from: string, to: string, onErrors?: string) => string
+
+const defaultTranspile: TranspileFunc = () => { return "" }
 
 export const App: FC = () => {
     const [code1, setCode1] = useState("");
     const [code2, setCode2] = useState("");
-    const [transpile, setTranspile] = useState(() => (v: string, _from: string, _to: string) => { return v })
+    const [transpile, setTranspile] = useState(() => defaultTranspile)
     const [fromDialect, setFromDialect] = useState("clickhouse")
     const [toDialect, setToDialect] = useState("clickhouse")
     const [dialectList, setDialectList] = useState(["clickhouse"])
@@ -50,14 +53,16 @@ ORDER BY year, count(*) DESC;
     }, [transpile, fromDialect, toDialect])
 
     const debouncedChangeHandler1 = useMemo(
-        () => debounce(changeHandler1, 300)
+        () => debounce(changeHandler1, 600)
         , [changeHandler1]);
 
-    const handleEditorChange1 = (value: (string | undefined)) => {
+    const handleEditorChange1 = useCallback((value: (string | undefined)) => {
         if (value != null) {
+            const res = transpile(value, fromDialect, toDialect, 'IGNORE')
+            setCode2(res)
             debouncedChangeHandler1(value)
         }
-    }
+    }, [debouncedChangeHandler1, fromDialect, toDialect, transpile])
 
     const handleChangeFrom = useCallback((event: SelectChangeEvent) => {
         setFromDialect(event.target.value)
@@ -88,9 +93,10 @@ ORDER BY year, count(*) DESC;
                 from pyodide.ffi import to_js
 
 
-                def transpile(sql, read=None, write=None):
+                def transpile(sql, read=None, write=None, error_level='RAISE'):
                     try:
-                        compiled = sqlglot.transpile(sql, read=read, write=write, pretty=True)
+                        el = sqlglot.ErrorLevel(error_level)
+                        compiled = sqlglot.transpile(sql, read=read, write=write, pretty=True, error_level=el)
                         return to_js(";\\n".join(compiled) + "\\n")
                     except Exception as e:
                         err_lines = str(e).splitlines()
@@ -105,8 +111,8 @@ ORDER BY year, count(*) DESC;
             const dialects = getDialects.call()
             setDialectList(dialects)
             const pyTranspile = namespace.get("transpile")
-            const transpile = () => (sql: string, from: string, to: string) => {
-                return pyTranspile.callKwargs(sql, { read: from, write: to })
+            const transpile: (() => TranspileFunc) = () => (sql: string, from: string, to: string, onErrors = 'RAISE') => {
+                return pyTranspile.callKwargs(sql, { read: from, write: to, error_level: onErrors })
             }
             setTranspile(transpile)
             setCode2(transpile()(defaultCode, fromDialect, toDialect))
@@ -138,7 +144,7 @@ ORDER BY year, count(*) DESC;
                             label="From dialect:"
                             onChange={handleChangeFrom}
                         >
-                            {dialectList.map(d => <MenuItem id={d} value={d}>{d}</MenuItem>)}
+                            {dialectList.map(d => <MenuItem key={d} value={d}>{d}</MenuItem>)}
                         </Select>
                     </FormControl>
                 </Grid>
@@ -153,7 +159,7 @@ ORDER BY year, count(*) DESC;
                             label="To dialect:"
                             onChange={handleChangeTo}
                         >
-                            {dialectList.map(d => <MenuItem id={d} value={d}>{d}</MenuItem>)}
+                            {dialectList.map(d => <MenuItem key={d} value={d}>{d}</MenuItem>)}
                         </Select>
                     </FormControl>
                 </Grid>
