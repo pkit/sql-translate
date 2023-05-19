@@ -4,15 +4,20 @@ import {FC, useCallback, useEffect, useMemo, useState} from "react";
 import debounce from 'lodash.debounce';
 import Editor from '@monaco-editor/react';
 import {
+    Box,
     CircularProgress,
     FormControl,
     Grid,
+    IconButton,
     InputLabel,
     MenuItem,
     Select,
     SelectChangeEvent,
-    Stack, Typography
+    Stack,
+    Typography,
 } from "@mui/material";
+import SyncAltIcon from '@mui/icons-material/SyncAlt';
+
 
 export const App: FC = () => {
     const [code1, setCode1] = useState("");
@@ -24,23 +29,14 @@ export const App: FC = () => {
 
 
     const defaultCode = `
-CREATE TABLE test
-(
-    id        UInt64,
-    timestamp DateTime64,
-    data      TEXT,
-    max_hits  UInt64,
-    sum_hits  UInt64
-) ENGINE=MergeTree
-PRIMARY KEY (id, toStartOfDay(timestamp), timestamp)
-TTL
-  timestamp + INTERVAL '1' DAY
-GROUP BY
-  id,
-  toStartOfDay(timestamp)
-        SET
-            max_hits = MAX(max_hits),
-  sum_hits = SUM(sum_hits)
+SELECT
+    passenger_count,
+    toYear(pickup_datetime) AS year,
+    round(trip_distance) AS distance,
+    count(*)
+FROM trips
+GROUP BY passenger_count, year, distance
+ORDER BY year, count(*) DESC;
 `
 
     const changeHandler1 = useCallback((value: string) => {
@@ -119,9 +115,20 @@ GROUP BY
         load().catch(console.error)
     }, [defaultCode])
 
+    const switchDialects = useCallback(() => {
+        const codeLeft = code1
+        const codeRight = code2
+        const dialectLeft = fromDialect
+        const dialectRight = toDialect
+        setToDialect(dialectLeft)
+        setFromDialect(dialectRight)
+        setCode1(codeRight)
+        setCode2(transpile(codeLeft, dialectRight, dialectLeft))
+    }, [code1, code2, fromDialect, toDialect, transpile])
+
     return (
-            <Grid container spacing={2}>
-                <Grid item xs={6}>
+            <Grid container spacing={2} columns={25}>
+                <Grid item xs={12}>
                     <FormControl>
                         <InputLabel id="demo-simple-select-label">From dialect:</InputLabel>
                         <Select
@@ -135,7 +142,8 @@ GROUP BY
                         </Select>
                     </FormControl>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid item xs={1} />
+                <Grid item xs={12}>
                     <FormControl>
                         <InputLabel id="demo-simple-select-label">To dialect:</InputLabel>
                         <Select
@@ -149,10 +157,21 @@ GROUP BY
                         </Select>
                     </FormControl>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid item xs={12}>
                     <Editor height="90vh" width="100%" defaultLanguage="sql" defaultValue={defaultCode} value={code1} onChange={handleEditorChange1}/>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid item xs={1}>
+                    <Box
+                        display="flex"
+                        justifyContent="center"
+                        alignItems="center"
+                    >
+                        <IconButton aria-label="switch from-to" color="primary" onClick={switchDialects}>
+                            <SyncAltIcon/>
+                        </IconButton>
+                    </Box>
+                </Grid>
+                <Grid item xs={12}>
                     {(code2) ?
                         <Editor height="90vh" width="100%" defaultLanguage="sql" value={code2} options={{readOnly: true}}/>
                         :
