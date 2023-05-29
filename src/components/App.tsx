@@ -87,20 +87,25 @@ ORDER BY year, count(*) DESC;
             await pyodide.loadPackage("micropip")
             const micropip = pyodide.pyimport("micropip")
             await micropip.install('sqlglot')
+            const versions = micropip.list().toString()
+            const match = /sqlglot\s+\|\s+(\S+)/.exec(versions)
+            if (match) {
+                console.log(`sqlglot: ${match[1]}`)
+            }
             const namespace = pyodide.globals.get("dict")()
             pyodide.runPython(`
                 import sqlglot
                 from pyodide.ffi import to_js
 
 
-                def transpile(sql, read=None, write=None, error_level='RAISE'):
+                def transpile(sql, read, write, error_level='IMMEDIATE'):
                     try:
                         el = sqlglot.ErrorLevel(error_level)
                         compiled = sqlglot.transpile(sql, read=read, write=write, pretty=True, error_level=el)
                         return to_js(";\\n".join(compiled) + "\\n")
                     except Exception as e:
                         err_lines = str(e).splitlines()
-                        return to_js("\\n".join(["-- ERROR"] + ["-- " + l for l in err_lines] + [""]))
+                        return to_js("\\n".join([f"-- ERROR (from: {read}, to: {write})"] + ["-- " + l for l in err_lines] + [""]))
 
 
                 def get_dialects():
